@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import re
 from collections.abc import AsyncIterator
 from typing import Any
@@ -8,9 +9,11 @@ from app.core.config import Settings, get_settings
 from app.db.sqlite import Database
 from app.services.llm import LLMClient, LLMError
 from app.services.persona import CharacterPack, PersonaService
+from app.services.tools import ToolRuntime
 
 REMEMBER_RE = re.compile(r"^(?:记住|請記住|请记住)[:：]\s*(.+)$")
 FORGET_RE = re.compile(r"^(?:忘掉|忘记|忘記)[:：]\s*(.+)$")
+MAX_TOOL_ROUNDS = 4
 
 
 class ChatService:
@@ -19,12 +22,14 @@ class ChatService:
         db: Database | None = None,
         llm: LLMClient | None = None,
         personas: PersonaService | None = None,
+        tools: ToolRuntime | None = None,
         settings: Settings | None = None,
     ) -> None:
         self.settings = settings or get_settings()
         self.db = db or Database()
         self.llm = llm or LLMClient(self.settings)
         self.personas = personas or PersonaService()
+        self.tools = tools or ToolRuntime()
 
     def memory_scope_key(self, pack: CharacterPack) -> str:
         if pack.memory_scope == "private":
@@ -36,8 +41,18 @@ class ChatService:
         session: dict[str, Any],
         pack: CharacterPack,
         history: list[dict[str, Any]],
-    ) -> list[dict[str, str]]:
+        *,
+        tools_enabled: bool,
+    ) -> list[dict[str, Any]]:
         system_parts = [pack.build_system_prompt()]
+        if tools_enabled:
+            info = self.tools.desktop.info()
+            system_parts.append(
+                "你可以使用桌面文件工具，作用域仅限沙箱工作区："
+                f"{info['workspace']}。"
+                "相对路径如 notes/todo.txt。写文件前先确认路径；"
+                "完成后用简洁中文说明你做了什么。"
+            )
         memories = self.db.list_memories(self.memory_scope_key(pack))
         if memories:
             bullets = "\n".join(f"- {m['content']}" for m in memories[:30])
@@ -48,7 +63,7 @@ class ChatService:
 
         working_limit = self.settings.chat_working_turns * 2
         recent = history[-working_limit:] if working_limit > 0 else history
-        messages: list[dict[str, str]] = [
+        messages: list[dict[str, Any]] = [
             {"role": "system", "content": "\n\n".join(system_parts)}
         ]
         for item in recent:
@@ -116,7 +131,9 @@ class ChatService:
         except LLMError:
             return
         if summary:
-            self.db.update_session(session_id, summary=summary[: self.settings.chat_max_summary_chars])
+            self.db.update_session(
+                session_id, summary=summary[: self.settings.chat_max_summary_chars]
+            )
 
     async def stream_reply(
         self,
@@ -144,7 +161,10 @@ class ChatService:
         if memory_cmd:
             reply = memory_cmd["reply"]
             self.db.add_message(session_id, "assistant", reply)
-            yield {"event": "meta", "data": {"persona_id": pack.id, "memory": memory_cmd["type"]}}
+            yield {
+                "event": "meta",
+                "data": {"persona_id": pack.id, "memory": memory_cmd["type"]},
+            }
             yield {"event": "token", "data": {"content": reply}}
             yield {
                 "event": "done",
@@ -152,27 +172,124 @@ class ChatService:
             }
             return
 
+        tool_schemas = self.tools.schemas_for_level(pack.boundaries.tools)
         history = self.db.list_messages(session_id)
-        messages = self.build_messages(session, pack, history)
-        yield {"event": "meta", "data": {"persona_id": pack.id, "model": self.settings.llm_model}}
+        messages = self.build_messages(
+            session, pack, history, tools_enabled=bool(tool_schemas)
+        )
+        yield {
+            "event": "meta",
+            "data": {
+                "persona_id": pack.id,
+                "model": self.settings.llm_model,
+                "tools": [t["function"]["name"] for t in tool_schemas],
+            },
+        }
 
-        buffer: list[str] = []
         try:
-            async for token in self.llm.stream_chat(
-                messages, temperature=pack.sampling.temperature
-            ):
-                buffer.append(token)
-                yield {"event": "token", "data": {"content": token}}
+            if tool_schemas:
+                async for event in self._run_with_tools(
+                    messages, pack, tool_schemas, session_id
+                ):
+                    yield event
+            else:
+                async for event in self._stream_plain(messages, pack, session_id):
+                    yield event
         except LLMError as exc:
             yield {"event": "error", "data": {"message": str(exc)}}
-            return
 
+    async def _stream_plain(
+        self,
+        messages: list[dict[str, Any]],
+        pack: CharacterPack,
+        session_id: str,
+    ) -> AsyncIterator[dict[str, Any]]:
+        buffer: list[str] = []
+        async for token in self.llm.stream_chat(
+            messages, temperature=pack.sampling.temperature
+        ):
+            buffer.append(token)
+            yield {"event": "token", "data": {"content": token}}
         full = "".join(buffer).strip()
         if not full:
             full = "（模型没有返回内容，请检查 Ollama 是否已启动并拉取对应模型。）"
             yield {"event": "token", "data": {"content": full}}
         self.db.add_message(session_id, "assistant", full)
         await self.maybe_summarize(session_id, pack)
+        yield {
+            "event": "done",
+            "data": {"session_id": session_id, "persona_id": pack.id},
+        }
+
+    async def _run_with_tools(
+        self,
+        messages: list[dict[str, Any]],
+        pack: CharacterPack,
+        tool_schemas: list[dict[str, Any]],
+        session_id: str,
+    ) -> AsyncIterator[dict[str, Any]]:
+        working = list(messages)
+        for _ in range(MAX_TOOL_ROUNDS):
+            message = await self.llm.complete_message(
+                working,
+                temperature=pack.sampling.temperature,
+                tools=tool_schemas,
+            )
+            tool_calls = message.get("tool_calls") or []
+            content = str(message.get("content") or "")
+            if tool_calls:
+                working.append(
+                    {
+                        "role": "assistant",
+                        "content": content or None,
+                        "tool_calls": tool_calls,
+                    }
+                )
+                for call in tool_calls:
+                    fn = call.get("function") or {}
+                    name = str(fn.get("name") or "")
+                    raw_args = fn.get("arguments") or {}
+                    call_id = str(call.get("id") or name)
+                    yield {
+                        "event": "tool_start",
+                        "data": {"name": name, "arguments": raw_args},
+                    }
+                    result = self.tools.execute(name, raw_args)
+                    payload = json.dumps(result, ensure_ascii=False)
+                    yield {
+                        "event": "tool_result",
+                        "data": {"name": name, "result": result},
+                    }
+                    working.append(
+                        {
+                            "role": "tool",
+                            "tool_call_id": call_id,
+                            "name": name,
+                            "content": payload,
+                        }
+                    )
+                continue
+
+            # No more tools: stream a polished final answer (optionally reuse content)
+            if content.strip():
+                yield {"event": "token", "data": {"content": content}}
+                self.db.add_message(session_id, "assistant", content.strip())
+                await self.maybe_summarize(session_id, pack)
+                yield {
+                    "event": "done",
+                    "data": {"session_id": session_id, "persona_id": pack.id},
+                }
+                return
+
+            # Empty content without tools — ask for a final streamed reply
+            async for event in self._stream_plain(working, pack, session_id):
+                yield event
+            return
+
+        # Safety stop after max rounds
+        final = "已达到工具调用轮次上限。请根据已有结果继续说明，或换个更具体的请求。"
+        yield {"event": "token", "data": {"content": final}}
+        self.db.add_message(session_id, "assistant", final)
         yield {
             "event": "done",
             "data": {"session_id": session_id, "persona_id": pack.id},

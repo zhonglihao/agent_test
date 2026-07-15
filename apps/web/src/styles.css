@@ -178,9 +178,12 @@ textarea {
   background: var(--user);
 }
 
-.bubble.assistant {
+.bubble.tool {
   justify-self: start;
-  background: var(--assistant);
+  background: #e8ece4;
+  color: var(--muted);
+  font-size: 0.9rem;
+  max-width: min(560px, 92%);
 }
 
 .speak-btn {

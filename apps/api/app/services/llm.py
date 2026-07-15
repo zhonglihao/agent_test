@@ -23,31 +23,51 @@ class LLMClient:
             "Content-Type": "application/json",
         }
 
-    async def chat_completion(
+    def _endpoint(self) -> str:
+        return f"{self.settings.llm_base_url.rstrip('/')}/chat/completions"
+
+    def _base_payload(
         self,
-        messages: list[dict[str, str]],
+        messages: list[dict[str, Any]],
         *,
-        temperature: float | None = None,
-        stream: bool = False,
-    ) -> dict[str, Any] | AsyncIterator[str]:
-        if stream:
-            return self.stream_chat(messages, temperature=temperature)
-        payload = {
+        temperature: float | None,
+        stream: bool,
+        tools: list[dict[str, Any]] | None = None,
+    ) -> dict[str, Any]:
+        payload: dict[str, Any] = {
             "model": self.settings.llm_model,
             "messages": messages,
             "temperature": temperature
             if temperature is not None
             else self.settings.llm_temperature,
-            "stream": False,
+            "stream": stream,
             "options": {
                 "num_ctx": self.settings.llm_num_ctx,
                 "keep_alive": self.settings.llm_keep_alive,
             },
         }
+        if tools:
+            payload["tools"] = tools
+            payload["tool_choice"] = "auto"
+        return payload
+
+    async def chat_completion(
+        self,
+        messages: list[dict[str, Any]],
+        *,
+        temperature: float | None = None,
+        stream: bool = False,
+        tools: list[dict[str, Any]] | None = None,
+    ) -> dict[str, Any] | AsyncIterator[str]:
+        if stream:
+            return self.stream_chat(messages, temperature=temperature, tools=None)
+        payload = self._base_payload(
+            messages, temperature=temperature, stream=False, tools=tools
+        )
         async with httpx.AsyncClient(timeout=120.0) as client:
             try:
                 response = await client.post(
-                    f"{self.settings.llm_base_url.rstrip('/')}/chat/completions",
+                    self._endpoint(),
                     headers=self._headers(),
                     json=payload,
                 )
@@ -63,27 +83,20 @@ class LLMClient:
 
     async def stream_chat(
         self,
-        messages: list[dict[str, str]],
+        messages: list[dict[str, Any]],
         *,
         temperature: float | None = None,
+        tools: list[dict[str, Any]] | None = None,
     ) -> AsyncIterator[str]:
-        payload = {
-            "model": self.settings.llm_model,
-            "messages": messages,
-            "temperature": temperature
-            if temperature is not None
-            else self.settings.llm_temperature,
-            "stream": True,
-            "options": {
-                "num_ctx": self.settings.llm_num_ctx,
-                "keep_alive": self.settings.llm_keep_alive,
-            },
-        }
+        # Streaming + tools is unreliable across local servers; prefer no tools here.
+        payload = self._base_payload(
+            messages, temperature=temperature, stream=True, tools=tools
+        )
         async with httpx.AsyncClient(timeout=None) as client:
             try:
                 async with client.stream(
                     "POST",
-                    f"{self.settings.llm_base_url.rstrip('/')}/chat/completions",
+                    self._endpoint(),
                     headers=self._headers(),
                     json=payload,
                 ) as response:
@@ -119,18 +132,28 @@ class LLMClient:
                     f"无法连接 LLM（{self.settings.llm_base_url}）：{exc}"
                 ) from exc
 
-    async def complete_text(
+    async def complete_message(
         self,
-        messages: list[dict[str, str]],
+        messages: list[dict[str, Any]],
         *,
-        temperature: float = 0.3,
-    ) -> str:
+        temperature: float | None = None,
+        tools: list[dict[str, Any]] | None = None,
+    ) -> dict[str, Any]:
         result = await self.chat_completion(
-            messages, temperature=temperature, stream=False
+            messages, temperature=temperature, stream=False, tools=tools
         )
         assert isinstance(result, dict)
         choices = result.get("choices") or []
         if not choices:
-            return ""
+            return {"role": "assistant", "content": ""}
         message = choices[0].get("message") or {}
+        return message
+
+    async def complete_text(
+        self,
+        messages: list[dict[str, Any]],
+        *,
+        temperature: float = 0.3,
+    ) -> str:
+        message = await self.complete_message(messages, temperature=temperature)
         return str(message.get("content") or "").strip()

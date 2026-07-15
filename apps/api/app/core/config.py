@@ -22,7 +22,7 @@ class Settings(BaseSettings):
     )
 
     app_name: str = "AgentTest"
-    app_version: str = "0.4.0"
+    app_version: str = "0.5.0"
     agenttest_env: str = "development"
     agenttest_log_level: str = "INFO"
 

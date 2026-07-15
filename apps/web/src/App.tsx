@@ -18,7 +18,7 @@ type Session = {
 
 type ChatMessage = {
   id: string;
-  role: "user" | "assistant" | "system";
+  role: "user" | "assistant" | "system" | "tool";
   content: string;
 };
 
@@ -242,6 +242,32 @@ export default function App() {
       }
       let assistantText = "";
       await readSse(res, (event, data) => {
+        if (event === "tool_start" && typeof data.name === "string") {
+          setMessages((prev) => [
+            ...prev,
+            {
+              id: `tool-start-${Date.now()}-${data.name}`,
+              role: "tool",
+              content: `调用工具：${data.name}`,
+            },
+          ]);
+        }
+        if (event === "tool_result" && typeof data.name === "string") {
+          const ok =
+            data.result &&
+            typeof data.result === "object" &&
+            (data.result as { ok?: boolean }).ok !== false;
+          setMessages((prev) => [
+            ...prev,
+            {
+              id: `tool-result-${Date.now()}-${data.name}`,
+              role: "tool",
+              content: ok
+                ? `工具完成：${data.name}`
+                : `工具失败：${data.name} · ${JSON.stringify(data.result)}`,
+            },
+          ]);
+        }
         if (event === "token" && typeof data.content === "string") {
           assistantText += data.content;
           setMessages((prev) =>

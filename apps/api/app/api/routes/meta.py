@@ -28,6 +28,7 @@ def meta() -> dict:
             "research": "planned",
             "meeting": "planned",
             "skills_mcp": "planned",
+            "tool_calling": "ready",
         },
         "modules": [
             {"id": "chat", "title": "对话陪伴", "status": "ready", "priority": "P0"},
