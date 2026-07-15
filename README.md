@@ -28,13 +28,26 @@ docker compose up --build -d
 - API Docs: http://localhost:8000/docs  
 - Health: http://localhost:8000/health  
 
-### 仅 API 开发热重载
+### 本地开发（不经过 Docker 构建）
 
 ```bash
-docker compose up --build api
+# API（Python 3.11+）
+cd apps/api
+python -m venv .venv
+.\.venv\Scripts\pip install -r requirements.txt
+.\.venv\Scripts\python -m uvicorn app.main:app --reload --port 8000
+
+# Web
+cd apps/web
+npm install
+npm run dev
 ```
 
-API 容器以只读方式挂载 `apps/api/app`，改代码后重启 `api` 服务即可验证。
+### 已实现（v0.2）
+
+- 多会话 SSE 流式对话（Ollama OpenAI 兼容接口）
+- 分层记忆：近轮窗口 + 超限摘要 +「记住/忘掉」长期记忆
+- Character Pack：扫描 `characters/` 与 `_examples/`，会话可绑定角色
 
 ## 仓库结构
 

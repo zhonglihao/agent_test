@@ -20,8 +20,8 @@ def meta() -> dict:
             "keep_alive": settings.llm_keep_alive,
         },
         "features": {
-            "chat": "planned",
-            "persona_pack": "planned",
+            "chat": "ready",
+            "persona_pack": "ready",
             "tts": "planned",
             "desktop": "planned",
             "office": "planned",
@@ -30,7 +30,7 @@ def meta() -> dict:
             "skills_mcp": "planned",
         },
         "modules": [
-            {"id": "chat", "title": "对话陪伴", "status": "next", "priority": "P0"},
+            {"id": "chat", "title": "对话陪伴", "status": "ready", "priority": "P0"},
             {"id": "desktop", "title": "桌面管家", "status": "planned", "priority": "P0"},
             {"id": "office", "title": "办公文档", "status": "planned", "priority": "P1"},
             {"id": "research", "title": "网页研究", "status": "planned", "priority": "P1"},

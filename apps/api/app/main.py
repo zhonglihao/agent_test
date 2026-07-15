@@ -1,8 +1,17 @@
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api.routes import health, meta
+from app.api.routes import chat, health, meta, personas
 from app.core.config import get_settings
+from app.db.sqlite import Database
+
+
+@asynccontextmanager
+async def lifespan(_app: FastAPI):
+    Database()  # ensure schema
+    yield
 
 
 def create_app() -> FastAPI:
@@ -11,6 +20,7 @@ def create_app() -> FastAPI:
         title=settings.app_name,
         version=settings.app_version,
         description="Local multi-capability agent: chat, desktop, office, research, meetings, skills.",
+        lifespan=lifespan,
     )
 
     app.add_middleware(
@@ -28,6 +38,8 @@ def create_app() -> FastAPI:
 
     app.include_router(health.router, tags=["health"])
     app.include_router(meta.router, prefix="/api", tags=["meta"])
+    app.include_router(chat.router, prefix="/api")
+    app.include_router(personas.router, prefix="/api")
 
     return app
 
