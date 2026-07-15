@@ -4,7 +4,22 @@ from pathlib import Path
 from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-REPO_ROOT = Path(__file__).resolve().parents[4]
+
+def _detect_repo_root() -> Path:
+    here = Path(__file__).resolve()
+    for candidate in here.parents:
+        if (candidate / "docker-compose.yml").exists():
+            return candidate
+        if (candidate / "apps").is_dir() and (candidate / "characters").is_dir():
+            return candidate
+    # Container layout: /app/app/core/config.py with characters at /app/characters
+    if Path("/app/app").exists():
+        return Path("/app")
+    idx = min(4, len(here.parents) - 1)
+    return here.parents[idx]
+
+
+REPO_ROOT = _detect_repo_root()
 
 
 def _existing_or_fallback(value: str, fallback: Path) -> str:
@@ -22,7 +37,7 @@ class Settings(BaseSettings):
     )
 
     app_name: str = "AgentTest"
-    app_version: str = "0.5.0"
+    app_version: str = "0.5.1"
     agenttest_env: str = "development"
     agenttest_log_level: str = "INFO"
 
