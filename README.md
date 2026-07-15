@@ -43,12 +43,13 @@ npm install
 npm run dev
 ```
 
-### 已实现（v0.3）
+### 已实现（v0.4）
 
 - 多会话 SSE 流式对话（Ollama OpenAI 兼容接口）
 - 分层记忆：近轮窗口 + 超限摘要 +「记住/忘掉」长期记忆
 - Character Pack：扫描 `characters/` 与 `_examples/`，会话可绑定角色
-- TTS：edge-tts 按角色声线朗读，WebUI 支持自动朗读与单条播放
+- TTS：edge-tts 优先，失败自动回退 Windows SAPI；WebUI 自动/手动朗读
+- 桌面文件工具：`data/workspace` 沙箱内 list/read/write（shell 暂未开放）
 
 ## 仓库结构
 

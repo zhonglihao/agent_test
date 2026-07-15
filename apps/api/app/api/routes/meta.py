@@ -23,7 +23,7 @@ def meta() -> dict:
             "chat": "ready",
             "persona_pack": "ready",
             "tts": "ready",
-            "desktop": "planned",
+            "desktop": "ready",
             "office": "planned",
             "research": "planned",
             "meeting": "planned",
@@ -31,7 +31,7 @@ def meta() -> dict:
         },
         "modules": [
             {"id": "chat", "title": "对话陪伴", "status": "ready", "priority": "P0"},
-            {"id": "desktop", "title": "桌面管家", "status": "planned", "priority": "P0"},
+            {"id": "desktop", "title": "桌面管家", "status": "ready", "priority": "P0"},
             {"id": "office", "title": "办公文档", "status": "planned", "priority": "P1"},
             {"id": "research", "title": "网页研究", "status": "planned", "priority": "P1"},
             {"id": "meeting", "title": "会议纪要", "status": "planned", "priority": "P2"},

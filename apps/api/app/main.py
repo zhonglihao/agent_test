@@ -3,7 +3,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api.routes import chat, health, meta, personas, tts
+from app.api.routes import chat, desktop, health, meta, personas, tts
 from app.core.config import get_settings
 from app.db.sqlite import Database
 
@@ -41,6 +41,7 @@ def create_app() -> FastAPI:
     app.include_router(chat.router, prefix="/api")
     app.include_router(personas.router, prefix="/api")
     app.include_router(tts.router, prefix="/api")
+    app.include_router(desktop.router, prefix="/api")
 
     return app
 
