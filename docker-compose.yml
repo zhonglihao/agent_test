@@ -1,0 +1,59 @@
+services:
+  api:
+    build:
+      context: ./apps/api
+      dockerfile: Dockerfile
+    container_name: agenttest-api
+    ports:
+      - "8000:8000"
+    env_file:
+      - .env
+    environment:
+      AGENTTEST_ENV: ${AGENTTEST_ENV:-development}
+      LLM_BASE_URL: ${LLM_BASE_URL:-http://host.docker.internal:11434/v1}
+      LLM_API_KEY: ${LLM_API_KEY:-ollama}
+      LLM_MODEL: ${LLM_MODEL:-qwen2.5:7b-instruct-q4_K_M}
+      LLM_NUM_CTX: ${LLM_NUM_CTX:-2048}
+      DATA_DIR: /data
+      CHARACTERS_DIR: /app/characters
+    volumes:
+      - ./data:/data
+      - ./characters:/app/characters
+      - ./apps/api/app:/app/app:ro
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health')"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    restart: unless-stopped
+
+  web:
+    build:
+      context: ./apps/web
+      dockerfile: Dockerfile
+      args:
+        VITE_API_BASE_URL: ${VITE_API_BASE_URL:-http://localhost:8000}
+    container_name: agenttest-web
+    ports:
+      - "5173:80"
+    depends_on:
+      api:
+        condition: service_healthy
+    restart: unless-stopped
+
+  # Optional local LLM (profile: ollama). Prefer host Ollama on Windows + NVIDIA.
+  ollama:
+    image: ollama/ollama:latest
+    container_name: agenttest-ollama
+    profiles: ["ollama"]
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_data:/root/.ollama
+    restart: unless-stopped
+
+volumes:
+  ollama_data:

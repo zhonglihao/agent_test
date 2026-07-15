@@ -1,0 +1,53 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Node
+node_modules/
+apps/**/node_modules/
+dist/
+apps/**/dist/
+.turbo/
+*.tsbuildinfo
+
+# Python local venv (Docker is source of truth)
+apps/**/.venv/
+.venv/
+
+# Env & secrets
+.env
+.env.local
+*.pem
+
+# Runtime data
+data/*
+!data/.gitkeep
+*.db
+*.sqlite3
+
+# Character packs (keep examples only)
+characters/*
+!characters/_examples/
+!characters/_examples/**
+
+# IDE / OS
+.idea/
+.vscode/
+*.swp
+.DS_Store
+Thumbs.db
+
+# Docker
+.docker-cache/
+
+# Logs
+*.log
+logs/

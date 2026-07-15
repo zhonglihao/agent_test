@@ -1,0 +1,1 @@
+# Runtime data directory (SQLite, uploads). Mounted into the API container.
