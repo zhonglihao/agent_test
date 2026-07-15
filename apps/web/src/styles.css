@@ -81,6 +81,12 @@ textarea {
   color: var(--muted);
 }
 
+.field.checkbox {
+  grid-template-columns: auto 1fr;
+  align-items: center;
+  gap: 0.5rem;
+}
+
 .field select {
   border: 1px solid var(--line);
   border-radius: 8px;
@@ -175,6 +181,17 @@ textarea {
 .bubble.assistant {
   justify-self: start;
   background: var(--assistant);
+}
+
+.speak-btn {
+  margin-top: 0.55rem;
+  border: 1px solid var(--line);
+  background: #fff;
+  border-radius: 6px;
+  padding: 0.25rem 0.55rem;
+  cursor: pointer;
+  color: var(--accent);
+  font-size: 0.85rem;
 }
 
 .empty {

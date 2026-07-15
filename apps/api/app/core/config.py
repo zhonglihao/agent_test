@@ -22,7 +22,7 @@ class Settings(BaseSettings):
     )
 
     app_name: str = "AgentTest"
-    app_version: str = "0.2.0"
+    app_version: str = "0.3.0"
     agenttest_env: str = "development"
     agenttest_log_level: str = "INFO"
 
@@ -37,6 +37,9 @@ class Settings(BaseSettings):
     chat_working_turns: int = 16
     chat_summarize_after_turns: int = 24
     chat_max_summary_chars: int = 2000
+
+    # auto | edge | sapi
+    tts_provider: str = "auto"
 
     data_dir: str = str(REPO_ROOT / "data")
     characters_dir: str = str(REPO_ROOT / "characters")

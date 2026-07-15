@@ -22,7 +22,7 @@ def meta() -> dict:
         "features": {
             "chat": "ready",
             "persona_pack": "ready",
-            "tts": "planned",
+            "tts": "ready",
             "desktop": "planned",
             "office": "planned",
             "research": "planned",

@@ -70,9 +70,11 @@ export default function App() {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState("");
   const [busy, setBusy] = useState(false);
+  const [autoSpeak, setAutoSpeak] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [status, setStatus] = useState("连接中…");
   const bottomRef = useRef<HTMLDivElement | null>(null);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
 
   const activePersona = useMemo(
     () => personas.find((p) => p.id === personaId) ?? personas[0],
@@ -117,6 +119,37 @@ export default function App() {
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, busy]);
+
+  const speakText = useCallback(
+    async (text: string) => {
+      const clean = text.trim();
+      if (!clean) return;
+      try {
+        const res = await fetch(`${API_BASE}/api/tts/speak`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ text: clean, persona_id: personaId }),
+        });
+        if (!res.ok) {
+          const detail = await res.text();
+          throw new Error(detail || `朗读失败 (${res.status})`);
+        }
+        const blob = await res.blob();
+        const url = URL.createObjectURL(blob);
+        if (audioRef.current) {
+          audioRef.current.pause();
+          URL.revokeObjectURL(audioRef.current.src);
+        }
+        const audio = new Audio(url);
+        audioRef.current = audio;
+        audio.onended = () => URL.revokeObjectURL(url);
+        await audio.play();
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "朗读失败");
+      }
+    },
+    [personaId],
+  );
 
   async function openSession(id: string) {
     const res = await fetch(`${API_BASE}/api/chat/sessions/${id}`);
@@ -207,8 +240,10 @@ export default function App() {
       if (!res.ok) {
         throw new Error(`发送失败 (${res.status})`);
       }
+      let assistantText = "";
       await readSse(res, (event, data) => {
         if (event === "token" && typeof data.content === "string") {
+          assistantText += data.content;
           setMessages((prev) =>
             prev.map((m) =>
               m.id === assistantId
@@ -219,6 +254,9 @@ export default function App() {
         }
         if (event === "error" && typeof data.message === "string") {
           setError(data.message);
+        }
+        if (event === "done" && autoSpeak && assistantText.trim()) {
+          void speakText(assistantText);
         }
       });
       await refreshSessions();
@@ -251,6 +289,15 @@ export default function App() {
               </option>
             ))}
           </select>
+        </label>
+
+        <label className="field checkbox">
+          <input
+            type="checkbox"
+            checked={autoSpeak}
+            onChange={(e) => setAutoSpeak(e.target.checked)}
+          />
+          <span>自动朗读回复</span>
         </label>
 
         <button className="primary" type="button" onClick={() => void createSession()}>
@@ -290,6 +337,15 @@ export default function App() {
             messages.map((m) => (
               <article key={m.id} className={`bubble ${m.role}`}>
                 <p>{m.content || (busy && m.role === "assistant" ? "…" : "")}</p>
+                {m.role === "assistant" && m.content ? (
+                  <button
+                    type="button"
+                    className="speak-btn"
+                    onClick={() => void speakText(m.content)}
+                  >
+                    朗读
+                  </button>
+                ) : null}
               </article>
             ))
           )}
