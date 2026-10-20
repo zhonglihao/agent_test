@@ -1,0 +1,28 @@
+# Copy to config.yaml (gitignored) and fill keys locally.
+# Do NOT commit real API keys.
+
+timezone: Asia/Shanghai
+tick_minutes: 30
+data_dir: ../../data/worldsim
+default_agent_id: agent_seed_01
+
+# LLM keys — leave empty to skip LLM calls (rules-only tick).
+deepseek_api_key: ""
+dashscope_api_key: ""
+
+# Model ids (used only when keys are present)
+llm:
+  structured_model: deepseek-flash
+  narrative_model: qwen-plus
+  deepseek_base_url: https://api.deepseek.com/v1
+  dashscope_base_url: https://dashscope.aliyuncs.com/compatible-mode/v1
+
+# PAD clamps / decay (affect_step)
+affect:
+  delta_abs_max: 0.25
+  decay_lambda: 0.08
+  bounds: [-1.0, 1.0]
+
+api:
+  host: 127.0.0.1
+  port: 8100

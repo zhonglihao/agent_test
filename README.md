@@ -1,4 +1,28 @@
-# AgentTest
+# AgentTest + WorldSim
+
+本仓库包含两部分：
+
+1. **AgentTest**（`apps/api` + `apps/web`）：本机多功能 AI Agent（对话 / 人设 / TTS / 桌面工具）。
+2. **WorldSim**（`apps/sim`）：虚拟生命 **世界模拟** 最小可 tick 骨架（路径 A，无 LLM 可跑）。详见 [`apps/sim/README.md`](apps/sim/README.md)。
+
+---
+
+## WorldSim 快速开始（P0）
+
+```bash
+cd apps/sim
+cp config.example.yaml config.yaml   # API Key 可留空
+python -m venv .venv && source .venv/bin/activate
+pip install -r requirements.txt
+python -m worldsim seed
+python -m worldsim tick -n 16
+python -m worldsim snapshot
+python -m worldsim serve   # 只读 API :8100
+```
+
+---
+
+## AgentTest
 
 本机多功能 AI Agent：**对话陪伴**（人设 / 记忆 / 语音）是核心能力之一，同时规划桌面管家、办公文档、网页研究、会议纪要与 Skills/MCP 扩展。
 

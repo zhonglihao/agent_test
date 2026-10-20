@@ -21,11 +21,15 @@ apps/**/dist/
 # Python local venv (Docker is source of truth)
 apps/**/.venv/
 .venv/
+apps/sim/.deps/
 
 # Env & secrets
 .env
 .env.local
 *.pem
+# WorldSim local config (keys); keep example committed
+apps/sim/config.yaml
+config.yaml
 
 # Runtime data
 data/*
