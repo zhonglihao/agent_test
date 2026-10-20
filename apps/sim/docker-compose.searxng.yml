@@ -1,0 +1,27 @@
+# Optional local SearXNG — better full-web SERP for WorldSim search.searxng.
+# Free / no VPS: runs on your machine only. Default in config: searxng.enabled=false.
+#
+# Start:
+#   cd apps/sim && docker compose -f docker-compose.searxng.yml up -d
+# Then set in config.yaml:
+#   search.providers.searxng.enabled: true
+#   search.providers.searxng.base_url: http://127.0.0.1:8080
+#
+# Stop:
+#   docker compose -f docker-compose.searxng.yml down
+#
+# Note: enable JSON format in SearXNG settings if results are empty
+# (settings.yml search.formats should include json). The image below
+# ships with a minimal override enabling json for local use.
+
+services:
+  searxng:
+    image: searxng/searxng:latest
+    container_name: worldsim-searxng
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./searxng:/etc/searxng:rw
+    environment:
+      - SEARXNG_BASE_URL=http://127.0.0.1:8080/
+    restart: unless-stopped

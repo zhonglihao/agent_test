@@ -10,14 +10,12 @@ default_agent_id: agent_seed_01
 deepseek_api_key: ""
 dashscope_api_key: ""
 
-# Model ids (used only when keys are present)
 llm:
   structured_model: deepseek-flash
   narrative_model: qwen-plus
   deepseek_base_url: https://api.deepseek.com/v1
   dashscope_base_url: https://dashscope.aliyuncs.com/compatible-mode/v1
 
-# PAD clamps / decay (affect_step)
 affect:
   delta_abs_max: 0.25
   decay_lambda: 0.08
@@ -26,3 +24,32 @@ affect:
 api:
   host: 127.0.0.1
   port: 8100
+
+# ---------------------------------------------------------------------------
+# S2 autonomous learning — free SearchProvider (no paid SERP default)
+# Default third-party: DuckDuckGo Instant Answer (api.duckduckgo.com, no key)
+# Optional upgrade: local Docker SearXNG (see docker-compose.searxng.yml)
+# ---------------------------------------------------------------------------
+search:
+  enabled: true
+  default_provider: duckduckgo
+  max_queries_per_tick: 1
+  max_queries_per_day: 30
+  max_snippets: 3
+  providers:
+    duckduckgo:
+      enabled: true
+      endpoint: https://api.duckduckgo.com/
+      timeout_sec: 4.0
+      # Instant Answer ≠ full web SERP; attribute DuckDuckGo when displaying.
+      # ToS: https://duckduckgo.com/terms — no key; avoid abusive rate.
+    wikimedia:
+      enabled: true
+      endpoint: https://zh.wikipedia.org/w/api.php
+      timeout_sec: 4.0
+    local_knowledge:
+      enabled: true   # offline fallback when network empty
+    searxng:
+      enabled: false  # set true only when local Docker is running
+      base_url: http://127.0.0.1:8080
+      timeout_sec: 5.0

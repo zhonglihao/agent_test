@@ -7,11 +7,14 @@ from datetime import datetime, timezone
 
 from .affect import affect_step, rule_appraise
 from .config import AppConfig
+from .learn import maybe_external_learn
 from .llm import LlmClient, build_llm_client
 from .memory import gate_memory, template_tick_summary
 from .models import AgentBundle, SimState
-
 logger = logging.getLogger("worldsim.tick")
+
+# Process-local tick counter for curiosity cadence (not wall clock).
+_TICK_COUNTER: dict[str, int] = {}
 
 # Generic adult schedule anchors (world-pack §3)
 # night sleep preference: 23:00–07:00 → home
@@ -215,6 +218,18 @@ def tick(state: SimState, agent_id: str, cfg: AppConfig, llm: LlmClient | None =
     if mem is not None:
         state.memories.append(mem)
 
+    # S2: optional free search → external_learn memory (≤1 / tick)
+    _TICK_COUNTER[agent_id] = _TICK_COUNTER.get(agent_id, 0) + 1
+    learn_mem = maybe_external_learn(
+        state,
+        agent_id,
+        cfg,
+        tick_index=_TICK_COUNTER[agent_id],
+    )
+    if learn_mem is not None:
+        # memory write budget: tick diary + at most 1 external_learn
+        state.memories.append(learn_mem)
+
     now = datetime.now(timezone.utc).isoformat()
     bundle.runtime.last_tick_at = now
     world.updated_at = now
@@ -238,6 +253,8 @@ def tick_n(
 def snapshot_dict(state: SimState, agent_id: str) -> dict:
     bundle = state.agents[agent_id]
     loc = state.world.location(bundle.runtime.location_id)
+    agent_mems = [m for m in state.memories if m.agent_id == agent_id]
+    learn_mems = [m for m in agent_mems if m.source == "external_learn"]
     return {
         "clock": state.world.clock.model_dump(),
         "clock_label": state.world.clock.label(),
@@ -252,7 +269,23 @@ def snapshot_dict(state: SimState, agent_id: str) -> dict:
         "money_band": bundle.runtime.money_band.value,
         "pad": bundle.affect.as_pad().model_dump(),
         "goal_gaps": [g.model_dump() for g in bundle.runtime.goal_gaps],
-        "memory_count": len([m for m in state.memories if m.agent_id == agent_id]),
+        "memory_count": len(agent_mems),
+        "external_learn_count": len(learn_mems),
+        "last_external_learn": learn_mems[-1].summary if learn_mems else None,
         "affect_log_count": len([a for a in state.affect_log if a.agent_id == agent_id]),
         "world_version": state.world.version,
+        # SceneViz contract: locations with edges (also projected by API)
+        "locations": [
+            {
+                "id": L.id,
+                "display_name": L.display_name,
+                "occupant_ids": L.occupant_ids,
+                "attrs": L.attrs,
+                "edges": [e.model_dump() for e in L.edges],
+            }
+            for L in state.world.locations
+        ],
+        # Future 3D renderer hook — not implemented in V1
+        "scene_renderer": "2.5d",
+        "scene_renderer_v2_note": "True 3D (Three.js etc.) reserved; same snapshot DTO.",
     }

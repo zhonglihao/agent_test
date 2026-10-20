@@ -243,3 +243,5 @@ class SimState(BaseModel):
     agents: dict[AgentId, AgentBundle]
     memories: list[EpisodicMemory] = Field(default_factory=list)
     affect_log: list[AffectLogEntry] = Field(default_factory=list)
+    # S2 search budget + query cache per agent: {agent_id: {sim_day, count, cache}}
+    search_usage: dict[str, dict[str, Any]] = Field(default_factory=dict)

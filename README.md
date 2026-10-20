@@ -7,18 +7,18 @@
 
 ---
 
-## WorldSim 快速开始（P0）
+## WorldSim 快速开始（P0 + 搜索 + 2.5D）
 
 ```bash
 cd apps/sim
-cp config.example.yaml config.yaml   # API Key 可留空
-python -m venv .venv && source .venv/bin/activate
-pip install -r requirements.txt
-python -m worldsim seed
-python -m worldsim tick -n 16
-python -m worldsim snapshot
-python -m worldsim serve   # 只读 API :8100
+cp config.example.yaml config.yaml   # LLM key 可留空；默认搜索 = DuckDuckGo
+pip install -r requirements.txt -t .deps
+PYTHONPATH="$(pwd):$(pwd)/.deps" python3 -m worldsim seed
+PYTHONPATH="$(pwd):$(pwd)/.deps" python3 -m worldsim tick -n 16
+PYTHONPATH="$(pwd):$(pwd)/.deps" python3 -m worldsim serve   # http://127.0.0.1:8100/ 2.5D
 ```
+
+详情与可选本机 SearXNG：[`apps/sim/README.md`](apps/sim/README.md)。
 
 ---
 

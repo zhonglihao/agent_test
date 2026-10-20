@@ -3,90 +3,180 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>WorldSim 观测</title>
+  <title>WorldSim 2.5D 观测</title>
   <style>
     :root {
-      --bg: #1a1f24;
+      --bg: #141a1f;
       --fg: #e8ecef;
       --muted: #8b969e;
       --accent: #3d8bfd;
-      --panel: #242b33;
+      --panel: #1e262e;
+      --line: #33404a;
     }
     * { box-sizing: border-box; }
     body {
       margin: 0;
       font-family: "IBM Plex Sans", "Noto Sans SC", sans-serif;
-      background: radial-gradient(1200px 600px at 10% -10%, #2a3540, var(--bg));
+      background:
+        radial-gradient(900px 480px at 80% -10%, #2a3a48, transparent),
+        radial-gradient(700px 400px at 0% 100%, #1a2830, var(--bg));
       color: var(--fg);
       min-height: 100vh;
-      padding: 1.5rem;
+      padding: 1rem 1.25rem 2rem;
     }
-    h1 { font-size: 1.25rem; font-weight: 600; margin: 0 0 0.25rem; }
-    p.sub { color: var(--muted); margin: 0 0 1rem; font-size: 0.9rem; }
-    .row { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-bottom: 1rem; align-items: center; }
-    input, button {
+    h1 { font-size: 1.2rem; font-weight: 600; margin: 0 0 0.2rem; }
+    p.sub { color: var(--muted); margin: 0 0 0.9rem; font-size: 0.88rem; }
+    .layout {
+      display: grid;
+      grid-template-columns: 1.4fr 1fr;
+      gap: 1rem;
+    }
+    @media (max-width: 900px) {
+      .layout { grid-template-columns: 1fr; }
+    }
+    .panel {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      padding: 0.75rem;
+      min-height: 0;
+    }
+    .row { display: flex; flex-wrap: wrap; gap: 0.45rem; margin-bottom: 0.75rem; align-items: center; }
+    input, button, select {
       font: inherit;
       border-radius: 6px;
-      border: 1px solid #3a4550;
-      background: var(--panel);
+      border: 1px solid var(--line);
+      background: #242e38;
       color: var(--fg);
-      padding: 0.45rem 0.7rem;
+      padding: 0.4rem 0.65rem;
     }
     button { background: var(--accent); border-color: transparent; cursor: pointer; }
     button.secondary { background: #3a4550; }
+    #scene {
+      width: 100%;
+      height: 380px;
+      display: block;
+      border-radius: 8px;
+      background: #0e1418;
+    }
     pre {
-      background: var(--panel);
-      padding: 1rem;
+      background: #12181e;
+      padding: 0.75rem;
       border-radius: 8px;
       overflow: auto;
-      font-size: 0.8rem;
+      font-size: 0.75rem;
       line-height: 1.4;
-      max-height: 70vh;
+      max-height: 280px;
+      margin: 0;
+    }
+    .learn {
+      margin-top: 0.6rem;
+      padding: 0.55rem 0.7rem;
+      border-left: 3px solid #6bcb8a;
+      background: rgba(107, 203, 138, 0.08);
+      font-size: 0.85rem;
+      color: #c8e6d0;
+      min-height: 2.4rem;
     }
     .err { color: #f07178; }
+    .note { font-size: 0.75rem; color: var(--muted); margin-top: 0.4rem; }
   </style>
 </head>
 <body>
-  <h1>WorldSim 只读观测</h1>
-  <p class="sub">记忆 / PAD 仅查看；推进走 debug tick（非用户写库）。</p>
+  <h1>WorldSim · 2.5D 场景观测</h1>
+  <p class="sub">吃 <code>/world/snapshot</code>；记忆/PAD 只读。后期真 3D 仅留接口，本页不实现。</p>
+
   <div class="row">
-    <label>API <input id="base" size="28" value="http://127.0.0.1:8100" /></label>
-    <label>agent_id <input id="agent" size="18" value="agent_seed_01" /></label>
-    <button id="btnSnap">刷新快照</button>
-    <button id="btnMem" class="secondary">记忆</button>
-    <button id="btnPad" class="secondary">PAD</button>
+    <label>API <input id="base" size="26" value="" /></label>
+    <label>agent_id <input id="agent" size="16" value="agent_seed_01" /></label>
+    <button id="btnSnap">刷新</button>
     <button id="btnTick">Tick ×1</button>
     <button id="btnTickN" class="secondary">Tick ×8</button>
+    <button id="btnLearn" class="secondary">检索学习记忆</button>
   </div>
-  <pre id="out">加载中…</pre>
+
+  <div class="layout">
+    <div class="panel">
+      <canvas id="scene" aria-label="2.5D world stage"></canvas>
+      <p class="note">伪透视地点舞台 · 主角 ★ 随 location 移动 · 日段换天空</p>
+      <div class="learn" id="learn">尚无 external_learn 摘要</div>
+    </div>
+    <div class="panel">
+      <div class="row">
+        <input id="q" placeholder="记忆关键词过滤 (S3)" size="18" />
+        <button id="btnMem" class="secondary">搜记忆</button>
+        <button id="btnPad" class="secondary">PAD</button>
+      </div>
+      <pre id="out">加载中…</pre>
+    </div>
+  </div>
+
+  <script src="/static/scene.js"></script>
   <script>
-    const out = document.getElementById("out");
-    const base = () => document.getElementById("base").value.replace(/\/$/, "");
-    const agent = () => document.getElementById("agent").value.trim();
-    async function go(path, opts) {
-      out.textContent = "…";
-      try {
-        const r = await fetch(base() + path, opts);
-        const t = await r.text();
-        let j;
-        try { j = JSON.parse(t); } catch { throw new Error(t || r.statusText); }
-        if (!r.ok) throw new Error(JSON.stringify(j, null, 2));
-        out.textContent = JSON.stringify(j, null, 2);
-      } catch (e) {
-        out.innerHTML = '<span class="err">' + e.message + "</span>";
+    (function () {
+      const out = document.getElementById("out");
+      const learn = document.getElementById("learn");
+      const baseInput = document.getElementById("base");
+      if (!baseInput.value) {
+        baseInput.value = location.origin && location.origin.startsWith("http")
+          ? location.origin
+          : "http://127.0.0.1:8100";
       }
-    }
-    document.getElementById("btnSnap").onclick = () =>
-      go("/world/snapshot?agent_id=" + encodeURIComponent(agent()));
-    document.getElementById("btnMem").onclick = () =>
-      go("/memories?agent_id=" + encodeURIComponent(agent()) + "&limit=20");
-    document.getElementById("btnPad").onclick = () =>
-      go("/affect/trajectory?agent_id=" + encodeURIComponent(agent()) + "&limit=20");
-    document.getElementById("btnTick").onclick = () =>
-      go("/debug/tick?agent_id=" + encodeURIComponent(agent()) + "&n=1", { method: "POST" });
-    document.getElementById("btnTickN").onclick = () =>
-      go("/debug/tick?agent_id=" + encodeURIComponent(agent()) + "&n=8", { method: "POST" });
-    document.getElementById("btnSnap").click();
+      const base = () => baseInput.value.replace(/\/$/, "");
+      const agent = () => document.getElementById("agent").value.trim();
+      const scene = new WorldSimScene.SceneRenderer(document.getElementById("scene"));
+
+      function showLearn(snap) {
+        if (snap && snap.last_external_learn) {
+          learn.textContent = "本轮学习（只读）：" + snap.last_external_learn;
+        } else if (snap && snap.external_learn_count) {
+          learn.textContent = "已有检索学习记忆 " + snap.external_learn_count + " 条";
+        } else {
+          learn.textContent = "尚无 external_learn 摘要（好奇/缺口触发时写入）";
+        }
+      }
+
+      async function go(path, opts) {
+        out.textContent = "…";
+        try {
+          const r = await fetch(base() + path, opts);
+          const t = await r.text();
+          let j;
+          try { j = JSON.parse(t); } catch { throw new Error(t || r.statusText); }
+          if (!r.ok) throw new Error(JSON.stringify(j, null, 2));
+          out.textContent = JSON.stringify(j, null, 2);
+          if (j.clock_label || j.locations) {
+            scene.setSnapshot(j);
+            showLearn(j);
+          }
+          return j;
+        } catch (e) {
+          out.innerHTML = '<span class="err">' + e.message + "</span>";
+          return null;
+        }
+      }
+
+      document.getElementById("btnSnap").onclick = () =>
+        go("/world/snapshot?agent_id=" + encodeURIComponent(agent()));
+      document.getElementById("btnTick").onclick = () =>
+        go("/debug/tick?agent_id=" + encodeURIComponent(agent()) + "&n=1", { method: "POST" });
+      document.getElementById("btnTickN").onclick = () =>
+        go("/debug/tick?agent_id=" + encodeURIComponent(agent()) + "&n=8", { method: "POST" });
+      document.getElementById("btnMem").onclick = () => {
+        const q = document.getElementById("q").value.trim();
+        let path = "/memories?agent_id=" + encodeURIComponent(agent()) + "&limit=30";
+        if (q) path += "&q=" + encodeURIComponent(q);
+        go(path);
+      };
+      document.getElementById("btnLearn").onclick = () =>
+        go("/memories?agent_id=" + encodeURIComponent(agent()) + "&source=external_learn&limit=20");
+      document.getElementById("btnPad").onclick = () =>
+        go("/affect/trajectory?agent_id=" + encodeURIComponent(agent()) + "&limit=20");
+
+      // idle bob for agent sprite
+      setInterval(() => { if (scene.snap) scene.paint(); }, 400);
+      document.getElementById("btnSnap").click();
+    })();
   </script>
 </body>
 </html>

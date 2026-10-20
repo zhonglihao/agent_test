@@ -1,84 +1,111 @@
-# WorldSim — 最小可 tick 世界模拟（路径 A）
+# WorldSim — 最小可 tick + 免费搜索学习 + 2.5D 场景
 
-对齐 Project 文档契约的 **P0 骨架**：无 LLM 也能推进时钟 / 位置 / 精力、模板情景记忆、规则 ΔPAD；可选接 DeepSeek Flash（结构化）+ 百炼 Qwen-Plus（叙事），**无 key 时跳过**。
+对齐 Project 契约的 **路径 A** 骨架：无 LLM key 可 tick；**默认 DuckDuckGo Instant Answer**（免 key）自主学习；**2.5D** 六地点舞台；可选本机 SearXNG。
 
 ## 与文档对应
 
 | 文档（Project store `docs/`） | 本包落点 |
 | --- | --- |
 | `data-contract-v0.md` | `worldsim/models.py` |
-| `world-pack-v0.md` | `worldsim/seed.py`（6 地点 + `agent_seed_01`） |
-| `protagonist-implementation.md` | `worldsim/tick.py` — `tick(state, agent_id)` |
-| `emotion-simulation.md` | `worldsim/affect.py` — 唯一 `affect_step` |
-| `long-term-memory-forgetting.md` | `worldsim/memory.py` — 写入闸门 + 模板日记 |
-| `api-provider-recommendation.md` | `config.example.yaml` + `worldsim/llm.py` |
-
-仓库路径：`apps/sim/`。
+| `world-pack-v0.md` | `worldsim/seed.py` |
+| `protagonist-implementation.md` | `worldsim/tick.py` |
+| `emotion-simulation.md` | `worldsim/affect.py` |
+| `autonomous-web-learning.md` | `worldsim/learn.py` + `worldsim/search/` |
+| `search-and-scene-viz.md` | 搜索栈 + `web/scene.js` 2.5D |
+| `api-provider-recommendation.md` | `config.example.yaml` LLM 段 |
 
 ## 配置
 
 ```bash
 cd apps/sim
-cp config.example.yaml config.yaml   # config.yaml 已进 .gitignore
-# 可暂留 deepseek_api_key / dashscope_api_key 为空字符串
+cp config.example.yaml config.yaml   # gitignored；勿提交真实 key
 ```
 
-字段说明见 `config.example.yaml`。真实密钥只写本地 `config.yaml` / `.env`，**不要提交仓库**。
+### 搜索（已定死默认三方）
+
+| 项 | 值 |
+| --- | --- |
+| **默认 Provider** | `search.default_provider: duckduckgo` |
+| **端点** | `https://api.duckduckgo.com/`（Instant Answer JSON，**免 key**） |
+| **补充** | `providers.wikimedia` → `https://zh.wikipedia.org/w/api.php`（免 key） |
+| **离线兜底** | `providers.local_knowledge`（网络空结果时） |
+| **可选 SERP** | `providers.searxng` 默认 **关闭**；本机 Docker 时可开 |
+
+Instant Answer **不是**完整网页 SERP；许多查询 Abstract 为空，此时会降级 Wikimedia → local。展示摘要时请署名 DuckDuckGo；遵守 [DuckDuckGo Terms](https://duckduckgo.com/terms)，勿高频滥用。
+
+LLM：`deepseek_api_key` / `dashscope_api_key` 可留空（跳过 LLM）。
+
+### 可选：本机 SearXNG（不租 VPS）
+
+```bash
+cd apps/sim
+docker compose -f docker-compose.searxng.yml up -d
+# 浏览器 http://127.0.0.1:8080
+```
+
+在 `config.yaml`：
+
+```yaml
+search:
+  providers:
+    searxng:
+      enabled: true
+      base_url: http://127.0.0.1:8080
+```
+
+启用后栈优先序：`searxng` → `duckduckgo` → `wikimedia` → `local_knowledge`。
 
 ## 安装与运行
 
 ```bash
 cd apps/sim
-python -m venv .venv
-source .venv/bin/activate   # Windows: .venv\Scripts\activate
-pip install -r requirements.txt
+pip install -r requirements.txt -t .deps   # 或 venv
+export PYTHONPATH="$(pwd):$(pwd)/.deps"
 
-# 初始化 seed
 python -m worldsim seed
-
-# 推进一步 / 多步
-python -m worldsim tick
 python -m worldsim tick -n 16
-
-# 打印快照
 python -m worldsim snapshot
-
-# 只读 API（默认 127.0.0.1:8100）
-python -m worldsim serve
+python -m worldsim serve   # http://127.0.0.1:8100/ 含 2.5D 页
 ```
 
 ### 只读 HTTP
 
 | 方法 | 路径 | 说明 |
 | --- | --- | --- |
-| GET | `/world/snapshot?agent_id=agent_seed_01` | 世界 + agent 快照 |
-| GET | `/memories?agent_id=…` | 情景记忆（按 agent 过滤） |
-| GET | `/affect/trajectory?agent_id=…` | PAD 轨迹 |
-| GET | `/requests?agent_id=…` | Intent 占位（P0 空） |
-| POST | `/debug/tick?n=1&agent_id=…` | 调试推进（非用户写记忆） |
+| GET | `/` | 2.5D 观测页 |
+| GET | `/world/snapshot?agent_id=` | 含 locations.**edges**、学习摘要 |
+| GET | `/world/graph?agent_id=` | 地点图 |
+| GET | `/memories?agent_id=&q=&source=` | S3 过滤；`source=external_learn` |
+| GET | `/affect/trajectory?agent_id=` | PAD |
+| POST | `/debug/tick?n=` | 调试推进 |
+| 写记忆/PAD | | **403** |
 
-对 `/memories`、`/affect*` 的写方法返回 **403**。
+### 验默认 DuckDuckGo（网络允许时）
 
-极简观测页：启动 API 后打开 `web/index.html`（或用任意静态服务器）。
-
-## 无 key 行为
-
-日志会出现：
-
-```text
-跳过 LLM（structured / Flash）：无 deepseek_api_key，使用规则层
-跳过 LLM（narrative / Plus）：无 dashscope_api_key，使用模板叙事
+```bash
+PYTHONPATH="$(pwd):$(pwd)/.deps" python -c "
+from worldsim.search.providers import DuckDuckGoProvider
+hits = DuckDuckGoProvider().retrieve('Python (programming language)', 2)
+print([(h.provider, h.title[:40], bool(h.snippet)) for h in hits])
+"
 ```
 
-规则层仍会：推进 `SimClock`（默认 +30 模拟分钟）、按作息移动最多 1 边、更新 `energy`/`hunger`、写模板记忆、经 `affect_step` 写 `affect_log`。
+有网时应看到 `provider=duckduckgo` 与非空 snippet。
 
-## 状态文件
+## 无 LLM / 无付费搜索行为
 
-默认：`data/worldsim/state.json`（相对仓库根，由 `config.data_dir` 解析）。`data/*` 已 gitignore。
+- 日志：`SearchProvider 栈已接线：default=duckduckgo order=[...]`
+- 好奇/缺口 tick：真实请求 DDG Instant Answer；空则 Wikimedia / local
+- 写入记忆 `source=external_learn`（trust=unverified；不改 world.weather）
 
-## 已知限制（P0）
+## 2.5D 场景
 
-- 无 Intent / Commitment 闭环（C5–C6）
-- 无外部神改天气 UI（可用手改 `state.json` 的 `weather` 验收）
-- LLM 接口已预留，有 key 时仍先走规则（完整 cognize 后续）
-- 与仓库原有 `apps/api` 聊天 Agent **并行共存**，未合并编排
+- `web/scene.js`：伪透视地点砖 + 主角 ★ + 日段天空；吃 snapshot
+- 后期真 3D：snapshot 含 `scene_renderer_v2_note`，**未实现**
+
+## 已知限制
+
+- Instant Answer 覆盖有限；全网 SERP 请开本机 SearXNG
+- Intent / Commitment / 外部神改天气 UI 未做
+- ProfileMerge 学习→画像后置
+- 与 `apps/api` 聊天栈并行共存
